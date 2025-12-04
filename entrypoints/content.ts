@@ -510,7 +510,7 @@ async function performActualLottery(): Promise<{
       // 等待弹窗出现（如果有的话）
       await sleep(1000)
 
-      // 检查是否有弹窗，如果有则关闭
+      // 检查是否有弹窗，如果有则等待5秒后关闭
       await closeLotteryModalIfExists()
 
       // 等待抽奖完成
@@ -714,21 +714,83 @@ async function readSigninData(): Promise<{
 /**
  * 关闭抽奖弹窗（如果存在）
  * 弹窗可能包含"当前矿石不足"等提示信息
+ * 等待弹窗出现（最多10秒），然后等待5秒后自动点击关闭按钮
  */
 async function closeLotteryModalIfExists(): Promise<void> {
   try {
-    // 查找弹窗容器
-    const modal = document.querySelector(
-      ".lottery-modal.byte-modal"
-    ) as HTMLElement
+    // 先等待弹窗出现（最多等待10秒）
+    console.log("等待抽奖弹窗出现...")
+    let modal: HTMLElement | null = null
+    for (let i = 0; i < 100; i++) {
+      modal = document.querySelector(
+        ".lottery-modal.byte-modal"
+      ) as HTMLElement
+      if (modal) {
+        console.log("检测到抽奖弹窗已出现")
+        break
+      }
+      await sleep(100)
+    }
+
+    // 如果弹窗未出现，直接返回
     if (!modal) {
-      console.log("未找到抽奖弹窗")
+      console.log("未检测到抽奖弹窗，可能不需要关闭")
       return
     }
 
-    console.log("检测到抽奖弹窗，准备关闭")
+    // 弹窗出现后，等待5秒
+    console.log("弹窗已出现，等待5秒后关闭")
+    await sleep(5000)
 
-    // 方式1: 查找并点击"我知道了"按钮（优先）
+    // 再次确认弹窗仍然存在
+    modal = document.querySelector(
+      ".lottery-modal.byte-modal"
+    ) as HTMLElement
+    if (!modal) {
+      console.log("等待5秒后弹窗已消失，无需关闭")
+      return
+    }
+
+    console.log("5秒等待完成，开始查找关闭按钮")
+
+    // 方式1: 查找并点击关闭图标（优先，根据用户提供的SVG，class为close-icon）
+    // 先尝试查找包含close-icon class的元素（可能是SVG或包含SVG的容器）
+    let closeIcon = modal.querySelector(".close-icon") as HTMLElement
+    if (closeIcon) {
+      console.log("找到关闭图标（.close-icon），准备点击")
+      // 如果找到的是SVG，直接点击
+      if (closeIcon.tagName === "svg") {
+        closeIcon.click()
+        console.log("关闭SVG图标已点击")
+        await sleep(500)
+        return
+      }
+      // 如果找到的是包含SVG的容器，尝试查找内部的SVG或可点击元素
+      const svgElement = closeIcon.querySelector("svg") as HTMLElement
+      if (svgElement) {
+        svgElement.click()
+        console.log("关闭图标内的SVG已点击")
+        await sleep(500)
+        return
+      }
+      // 如果容器本身可点击，直接点击容器
+      closeIcon.click()
+      console.log("关闭图标容器已点击")
+      await sleep(500)
+      return
+    }
+
+    // 方式2: 直接查找SVG元素（通过class和tagName）
+    const closeSvg = modal.querySelector("svg.close-icon") as HTMLElement
+    if (closeSvg) {
+      console.log("找到关闭SVG图标（svg.close-icon），准备点击")
+      closeSvg.click()
+      console.log("关闭SVG图标已点击")
+      await sleep(500)
+      return
+    }
+
+    // 方式3: 查找并点击"我知道了"按钮（备选方案）
     const submitButton = modal.querySelector(
       "button.submit"
     ) as HTMLButtonElement
@@ -740,35 +802,30 @@ async function closeLotteryModalIfExists(): Promise<void> {
       return
     }
 
-    // 方式2: 查找并点击关闭图标
-    const closeIcon = modal.querySelector(".close-icon") as HTMLElement
-    if (closeIcon) {
-      console.log("找到关闭图标，准备点击")
-      closeIcon.click()
-      console.log("关闭图标已点击")
-      await sleep(500)
-      return
+    // 方式4: 通过SVG路径特征查找关闭按钮
+    // 用户提供的SVG包含特定的path，可以通过这个特征查找
+    const allSvgs = modal.querySelectorAll("svg")
+    for (const svg of allSvgs) {
+      const path = svg.querySelector('path[fill="#86909C"]')
+      if (path && svg.classList.contains("close-icon")) {
+        console.log("通过SVG路径特征找到关闭按钮，准备点击")
+        svg.click()
+        console.log("关闭按钮已点击")
+        await sleep(500)
+        return
+      }
     }
 
-    // 方式3: 查找并点击模态框的关闭按钮（通过SVG路径查找）
-    const closeSvg = modal.querySelector("svg.close-icon") as HTMLElement
-    if (closeSvg) {
-      console.log("找到关闭SVG图标，准备点击")
-      closeSvg.click()
-      console.log("关闭SVG图标已点击")
-      await sleep(500)
-      return
-    }
-
-    // 方式4: 点击遮罩层关闭（如果支持）
+    // 方式5: 点击遮罩层关闭（如果支持）
     const mask = modal.querySelector(".byte-modal__mask") as HTMLElement
     if (mask) {
       console.log("尝试点击遮罩层关闭弹窗")
       mask.click()
       await sleep(500)
+      return
     }
 
-    console.log("未找到弹窗关闭按钮")
+    console.log("未找到弹窗关闭按钮，弹窗可能已自动关闭")
   } catch (error) {
     console.error("关闭弹窗时出错:", error)
   }
