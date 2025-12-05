@@ -3,6 +3,5 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx"
-  },
-  "include": ["entrypoints/**/*", "types/**/*", "wxt.config.ts"]
+  }
 }
